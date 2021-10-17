@@ -1,136 +1,98 @@
-export type OnStatusChange = (name: string, status: Status) => void;
+import { ViewModel, startViewModel, Input, AfterInput } from "./view-model";
+import { Status, OK, ERROR, WARNING, UNKNOWNERROR, StatusChangeEvent } from "./status";
+import { Min, Max, MinSize, MaxSize, Mandatory } from "./validators";
 
-export function startViewModel(prefix: string, viewModel: ViewModel, onStatusChange: OnStatusChange) {
-    viewModel.onInit(onStatusChange);
-}
+export {
+    Input,
+    startViewModel,
+    ViewModel,
+    Status,
+    OK,
+    ERROR,
+    WARNING,
+    UNKNOWNERROR,
+    Min,
+    Max,
+    MinSize,
+    MaxSize,
+    Mandatory,
+    StatusChangeEvent,
+    AfterInput
+};
 
+// function expect(v1: any, v2: any) {
+//     console.log("EXPECT " + v1 + " = " + v2 + " => " + (v1 === v2))
+// }
 
-// function ID(id: string) {
-//     return function (constructor: Function) {
-//         constructor.prototype.viewModelID = id;
+// class TestViewModel extends ViewModel {
+//     @Input()
+//     id?: string;
+
+//     @Input() @MaxSize(10) @Mandatory()
+//     name?: string;
+
+//     @AfterInput('name')
+//     inputName(val: string) {
+//         if (val && !val[0].match(/^[A-Za-z]+$/)) {
+//             return new ERROR('invalid-chars');
+//         } else if (val === 'TEST') {
+//             return false;
+//         }
+//     }
+
+//     @Input() @Max(100)
+//     age?: number;
+
+//     constructor(id: string | null) {
+//         super();
+//         if (id === 'A') {
+//             this.id = id;
+//             this.name = 'Test';
+//             this.age = 30;
+//         } else if (id !== null) {
+//             this.id = id;
+//         }
 //     }
 // }
 
-export abstract class ViewModel {
-    private onStatusChange: OnStatusChange | null = null;
+// const tvm = new TestViewModel(null);
+// let invalidChars = false;
+// const onChangeStatus = (e: StatusChangeEvent) => {
+//     invalidChars = e.property === 'name' && e.containsError('invalid-chars');
+// };
+// startViewModel('test', tvm, onChangeStatus);
 
-    onInit(onStatusChange: OnStatusChange) {
-        this.onStatusChange = onStatusChange;
-        const self: any = this;
-        Object.keys(self).forEach((key: string) => {
-            const property = self[key];
-            if (property instanceof Input) {
-                property.registerViewModel(key, this);
-            }
-        });
-    }
+// expect(tvm.id, undefined);
+// expect(tvm.name, undefined);
+// expect(tvm.age, undefined);
+// expect(tvm.isViewModelValid(), true);
 
-    public set(state: any) {
-        const self: any = this;
-        Object.keys(state).forEach((key: string) => {
-            const property = self[key];
-            if (!property || !(property instanceof Input)) {
-                throw new Error(`Invalid key ${key}`);
-            }
-            property.value = state[key];
-        });
-    }
+// tvm.triggerAfterInput('age', 10);
+// tvm.triggerAfterInput('name', 'Test 123');
 
-    newStatus(input: Input<any>) {
-        if (!this.onStatusChange) {
-            throw new Error('Callback onStatusChange not set for ViewModelClient');
-        }
-        this.onStatusChange(input.name, input.status);
-    }
-}
+// expect(tvm.name, 'Test 123');
+// expect(tvm.isViewModelValid(), true);
+// expect(tvm.age, 10);
+// expect(tvm.isViewModelValid(), true);
 
-export class Status { }
-export class OK extends Status {
-}
-export class WARNING extends Status {
-    constructor(public label: string) { super(); }
-}
+// tvm.triggerAfterInput('age', 999);
 
-export class ERROR extends Status {
-    constructor(public label: string) { super(); }
-}
+// expect(tvm.age, 999);
+// expect(tvm.isViewModelValid(), false);
 
-export class UNKNOWN extends Status {
-    constructor(public message: string) { super(); }
-}
+// tvm.triggerAfterInput('name', '1234qwerasdfzxdf');
+// expect(tvm.name, '1234qwerasdfzxdf');
+// expect(tvm.isViewModelValid(), false);
+// expect(invalidChars, true);
 
-interface Event {
-    value: any;
-}
 
-type AfterInput<T> = (_val: T) => boolean | void;
-abstract class Input<T> {
+// tvm.triggerAfterInput('name', 'qwer');
+// expect(tvm.name, 'qwer');
+// expect(tvm.isViewModelValid(), true);
+// expect(invalidChars, false);
 
-    private vm: ViewModel | null = null;
-    private _name: string = "";
-    public _status: Status = new OK();
-    private _val: T | null = null;
-    private _afterInput: AfterInput<T>;
-    constructor(fn: AfterInput<T> | null = null) {
-        this._afterInput = fn || (v => { });
-    }
+// tvm.triggerAfterInput('name', '');
+// expect(tvm.name, '');
+// expect(tvm.isViewModelValid(), false);
+// expect(invalidChars, false);
 
-    public set value(value: T | null) {
-        this._val = value;
-    }
-    public get value(): T | null {
-        return this._val;
-    }
-    public get status() {
-        return this._status;
-    }
-    public get name() {
-        return this._name;
-    }
-
-    public set afterInput(fn: AfterInput<T>) {
-        this._afterInput = fn;
-    }
-
-    registerViewModel(name: string, vm: ViewModel) {
-        this.vm = vm;
-        this._name = name;
-    }
-
-    triggerAfterInput(event: Event) {
-        let newStatus: Status = new OK();
-        let result: boolean | void = true;
-        if (this._afterInput) {
-            try {
-                result = this._afterInput(event.value as T);
-            } catch (error: any) {
-                if (error instanceof WARNING || error instanceof ERROR) {
-                    newStatus = error;
-                } else {
-                    newStatus = new UNKNOWN(error.message);
-                }
-            }
-        }
-        if (result !== false) {
-            this._val = event.value;
-        }
-        if (this.status.constructor !== newStatus.constructor ||
-            (newStatus instanceof WARNING && (newStatus.label !== (this.status as WARNING).label)) ||
-            (newStatus instanceof ERROR && (newStatus.label !== (this.status as ERROR).label)) ||
-            (newStatus instanceof UNKNOWN && (newStatus.message !== (this.status as UNKNOWN).message))) {
-            this._status = newStatus;
-            if (this.vm) {
-                this.vm.newStatus(this);
-            }
-        }
-    }
-}
-
-export class IText extends Input<string>{
-}
-
-export class INumber extends Input<number>{
-}
-
-export class IDate extends Input<Date>{
-}
