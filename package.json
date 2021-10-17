@@ -1,6 +1,6 @@
 {
   "name": "microviewmodel",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "MicroViewModel Framework",
   "main": "index.js",
   "scripts": {
